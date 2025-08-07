@@ -1,0 +1,20 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Auto-generated CloudFormation Template from AI-classified discovery output
+
+Resources:
+{% for component in components %}
+  {{ component.resource_name }}Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.medium  # Placeholder - could be dynamic in future
+      ImageId: ami-12345678    # Placeholder or mapped per component/os
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 20
+      Tags:
+        - Key: Name
+          Value: {{ component.name }}
+        - Key: ComponentType
+          Value: {{ component.tag }}
+{% endfor %}
