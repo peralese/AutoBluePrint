@@ -61,6 +61,7 @@ autoblueprint/
    Create a `.env` file in the root:
    ```
    OPENAI_API_KEY=sk-xxxxxx...
+   GPT_MODEL=gpt-3.5-turbo   # Optional: default is gpt-4 if not set
    ```
 
 3. **Prepare Your OSQuery Input**

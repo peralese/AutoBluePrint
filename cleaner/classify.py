@@ -10,8 +10,12 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 def classify_programs(raw_programs):
     # Prioritize non-Microsoft software to improve GPT relevance
+    model = os.getenv("GPT_MODEL", "gpt-4") 
+    MAX_SAMPLE = 35
+
     interesting = [p for p in raw_programs if p.get("publisher") and "microsoft" not in p["publisher"].lower()]
-    sample = interesting[:50] if len(interesting) >= 50 else raw_programs[:50]
+    sample = interesting[:MAX_SAMPLE] if len(interesting) >= MAX_SAMPLE else raw_programs[:MAX_SAMPLE]
+
 
     system_prompt = (
         "You are an AI assistant that classifies software discovered via OSQuery.\n"
@@ -25,7 +29,7 @@ def classify_programs(raw_programs):
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4",
+            model = model,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}

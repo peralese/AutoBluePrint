@@ -36,7 +36,7 @@ def map_to_instance(cpu, memory, os_type, region):
     )
 
     response = client.chat.completions.create(
-        model="gpt-4",
+        model = os.getenv("GPT_MODEL", "gpt-4")
         messages=[{"role": "user", "content": prompt}],
         temperature=0
     )
