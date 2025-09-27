@@ -1,0 +1,35 @@
+stages:
+  - classify
+  - generate
+  - deploy
+
+variables:
+  AWS_DEFAULT_REGION: "$AWS_REGION"
+
+before_script:
+  - pip install -r requirements.txt
+  - python --version
+  - echo "AWS Region: $AWS_DEFAULT_REGION"
+
+classify:
+  stage: classify
+  script:
+    - echo "✨ Classifying middleware from OSQuery data..."
+    - python main.py
+
+
+deploy:
+  stage: deploy
+  script:
+    - echo "🚀 Deploying to AWS via CloudFormation..."
+    - python deploy.py
+  only:
+    - main
+
+# Optional: add environment variables in GitLab CI/CD settings:
+# - AWS_ACCESS_KEY_ID
+# - AWS_SECRET_ACCESS_KEY
+# - OPENAI_API_KEY
+# - AWS_REGION (default: us-east-1)
+# - STACK_NAME (default: autoblueprint-stack)
+
