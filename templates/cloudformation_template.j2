@@ -1,20 +1,114 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Auto-generated CloudFormation Template from AI-classified discovery output
+Description: Auto-generated CloudFormation Template (MVP) to stand up a simple web server and restore content from S3.
+
+Parameters:
+  InstanceType:
+    Type: String
+    Default: t3.micro
+    Description: EC2 instance type for the web server.
+  AmiId:
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
+    Description: SSM parameter for the latest Amazon Linux 2 AMI.
+  S3Bucket:
+    Type: String
+    Description: S3 bucket that holds the site archive (zip or tgz).
+  S3Key:
+    Type: String
+    Description: S3 key (object path) for the site archive.
+  WebServer:
+    Type: String
+    Default: nginx
+    AllowedValues:
+      - nginx
+      - httpd
+    Description: Which web server to install on Amazon Linux 2.
+  SecurityGroupId:
+    Type: String
+    Default: ''
+    Description: Optional existing Security Group ID to attach; leave blank to use default SG.
+
+Conditions:
+  HasSecurityGroup: !Not [ !Equals [ !Ref SecurityGroupId, '' ] ]
 
 Resources:
-{% for component in components %}
-  {{ component.resource_name }}Instance:
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: S3ReadAccessForContent
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub arn:aws:s3:::${S3Bucket}
+                  - !Sub arn:aws:s3:::${S3Bucket}/*
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [ !Ref InstanceRole ]
+
+  WebServerInstance:
     Type: AWS::EC2::Instance
     Properties:
-      InstanceType: t3.medium  # Placeholder - could be dynamic in future
-      ImageId: ami-12345678    # Placeholder or mapped per component/os
+      InstanceType: !Ref InstanceType
+      ImageId: !Ref AmiId
+      IamInstanceProfile: !Ref InstanceProfile
       BlockDeviceMappings:
         - DeviceName: /dev/xvda
           Ebs:
             VolumeSize: 20
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash -xe
+          exec > /var/log/userdata.log 2>&1
+          yum update -y
+          yum install -y unzip awscli
+          if [ "${WebServer}" = "nginx" ]; then
+            amazon-linux-extras install nginx1 -y || yum install -y nginx
+            systemctl enable nginx
+            systemctl stop nginx || true
+            WEBROOT="/usr/share/nginx/html"
+          else
+            # httpd (Apache)
+            yum install -y httpd
+            systemctl enable httpd
+            systemctl stop httpd || true
+            WEBROOT="/var/www/html"
+          fi
+          mkdir -p ${WEBROOT}
+          TMPFILE="/tmp/site-archive"
+          aws s3 cp s3://${S3Bucket}/${S3Key} ${TMPFILE}
+          # If key ends with .zip, use unzip; otherwise try tar.gz
+          case "${S3Key}" in
+            *.zip)
+              unzip -o ${TMPFILE} -d ${WEBROOT} ;;
+            *)
+              mkdir -p /tmp/site
+              tar -xzf ${TMPFILE} -C /tmp/site || true
+              cp -r /tmp/site/* ${WEBROOT}/ || true ;;
+          esac
+          echo "Deployed content from s3://${S3Bucket}/${S3Key} to ${WEBROOT}" > /var/log/deploy.log
+          if [ "${WebServer}" = "nginx" ]; then
+            systemctl start nginx
+          else
+            systemctl start httpd
+          fi
       Tags:
         - Key: Name
-          Value: {{ component.name }}
-        - Key: ComponentType
-          Value: {{ component.tag }}
-{% endfor %}
+          Value: AutoBlueprintWebServer
+    {% if components %}
+      # Note: components are classified items from discovery; currently not used to shape the instance.
+    {% endif %}

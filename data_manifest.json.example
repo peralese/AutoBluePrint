@@ -1,0 +1,13 @@
+{
+  "include": [
+    "/var/www/html"
+  ],
+  "exclude": [
+    "**/logs/**",
+    "**/*.tmp",
+    "**/~*"
+  ],
+  "os": "al2",
+  "web": "nginx"
+}
+

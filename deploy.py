@@ -10,6 +10,10 @@ load_dotenv()
 AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
 STACK_NAME = os.getenv("STACK_NAME", "autoblueprint-stack")
 OUTPUT_DIR = Path("output")
+S3_BUCKET = os.getenv("S3_BUCKET")
+S3_KEY = os.getenv("S3_KEY")
+WEB_SERVER = os.getenv("WEB_SERVER", "nginx")
+SECURITY_GROUP_ID = os.getenv("SECURITY_GROUP_ID", "")
 
 # Find the latest output folder
 def get_latest_template_path():
@@ -28,12 +32,26 @@ def deploy_cloudformation(template_path):
 
     print(f"\U0001F4E6 Deploying stack '{STACK_NAME}' using {template_path} ...")
 
+    parameters = []
+    if S3_BUCKET and S3_KEY:
+        parameters.extend([
+            {"ParameterKey": "S3Bucket", "ParameterValue": S3_BUCKET},
+            {"ParameterKey": "S3Key", "ParameterValue": S3_KEY},
+        ])
+    else:
+        print("⚠ S3_BUCKET and/or S3_KEY not set. You must provide these parameters manually in the console or set environment variables.")
+    if WEB_SERVER:
+        parameters.append({"ParameterKey": "WebServer", "ParameterValue": WEB_SERVER})
+    if SECURITY_GROUP_ID:
+        parameters.append({"ParameterKey": "SecurityGroupId", "ParameterValue": SECURITY_GROUP_ID})
+
     try:
         cf.create_stack(
             StackName=STACK_NAME,
             TemplateBody=template_body,
             Capabilities=["CAPABILITY_NAMED_IAM"],
-            OnFailure="DELETE"
+            OnFailure="DELETE",
+            Parameters=parameters
         )
         print(f"✅ Stack creation initiated. Monitor progress in AWS Console.")
     except cf.exceptions.AlreadyExistsException:
@@ -41,7 +59,8 @@ def deploy_cloudformation(template_path):
         cf.update_stack(
             StackName=STACK_NAME,
             TemplateBody=template_body,
-            Capabilities=["CAPABILITY_NAMED_IAM"]
+            Capabilities=["CAPABILITY_NAMED_IAM"],
+            Parameters=parameters
         )
         print("🔄 Stack update initiated.")
     except Exception as e:

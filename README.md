@@ -134,3 +134,33 @@ deploy:
 Erick Perales  
 Cloud Migration Architect, AI Automation Advocate
 <https://github.com/peralese>
+---
+
+## MVP Usage
+
+### Package and Upload Data to S3
+- Create a manifest based on data_manifest.json.example (Linux example includes /var/www/html).
+`ash
+cp data_manifest.json.example data_manifest.json
+# Edit include/exclude paths as needed
+python packager.py --manifest data_manifest.json --bucket <your-bucket> --key demo/site.zip
+``r
+
+### Generate Template
+`ash
+python main.py
+``r
+
+### Deploy
+Set env vars for the deploy helper or pass parameters in the console:
+`ash
+set S3_BUCKET=<your-bucket>
+set S3_KEY=demo/site.zip
+set WEB_SERVER=nginx  # or httpd
+python deploy.py
+``r
+Notes:
+- Template uses Amazon Linux 2 via SSM AMI parameter and installs 
+ginx or httpd.
+- Without SECURITY_GROUP_ID, default SG applies (may not allow inbound 80). Set SECURITY_GROUP_ID to attach a SG that allows HTTP.
+
