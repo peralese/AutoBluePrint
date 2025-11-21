@@ -1,6 +1,6 @@
 # 🤖 AutoBlueprint: Agentic AI-Powered CloudFormation Generator (Middleware Mode)
 
-**AutoBlueprint** is a proof-of-concept tool that analyzes OSQuery discovery data, uses GPT to classify useful software components (runtimes, middleware, databases), and generates a ready-to-deploy **CloudFormation template** to re-provision the workload in AWS.
+**AutoBlueprint** is a proof-of-concept tool that analyzes OSQuery discovery data, uses GPT to classify useful software components (runtimes, middleware, databases), and generates a ready-to-deploy **CloudFormation template** to re-provision the workload in AWS. It now also parses host specs (OS/CPU/RAM) from the OSQuery export and uses them to recommend instance defaults in the template.
 
 ---
 
@@ -60,9 +60,19 @@ STACK_NAME=autoblueprint-stack
 
 ### 3. Run AutoBlueprint Manually
 ```bash
-python main.py
+python main.py  # accepts OSQuery export with concatenated arrays (discovery.sql)
 python deploy.py  # Optional: deploy the latest template to AWS
 ```
+
+### Input expectations
+- Preferred: OSQuery discovery dump produced by `discovery.sql`, which outputs multiple JSON arrays concatenated in order: `os_version`, `cpu_info`, `memory_info`, `interface_details`, `processes`, `programs`. Example: `output2.json`.
+- Fallback: a simple JSON array of programs (previous behavior). Specs will not be inferred in this mode.
+
+### What gets inferred for the template
+- Instance type default: heuristic match to detected cores/RAM.
+- AMI default (SSM param): based on detected OS (Windows, Ubuntu 20/22, otherwise Amazon Linux 2).
+- Root volume size default: 60GB for Windows, 20GB otherwise.
+- The classified middleware list is still emitted (normalized names), but not yet used to install software.
 
 ---
 

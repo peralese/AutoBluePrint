@@ -4,12 +4,16 @@ Description: Auto-generated CloudFormation Template (MVP) to stand up a simple w
 Parameters:
   InstanceType:
     Type: String
-    Default: t3.micro
+    Default: {{ instance_type_default or "t3.micro" }}
     Description: EC2 instance type for the web server.
   AmiId:
     Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
-    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
+    Default: {{ ami_param_default }}
     Description: SSM parameter for the latest Amazon Linux 2 AMI.
+  VolumeSize:
+    Type: Number
+    Default: {{ volume_size_default }}
+    Description: Root EBS volume size in GB.
   S3Bucket:
     Type: String
     Description: S3 bucket that holds the site archive (zip or tgz).
@@ -69,7 +73,7 @@ Resources:
       BlockDeviceMappings:
         - DeviceName: /dev/xvda
           Ebs:
-            VolumeSize: 20
+            VolumeSize: !Ref VolumeSize
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash -xe
@@ -111,4 +115,7 @@ Resources:
           Value: AutoBlueprintWebServer
     {% if components %}
       # Note: components are classified items from discovery; currently not used to shape the instance.
+    {% endif %}
+    {% if specs %}
+      # Detected specs from OSQuery: {{ specs }}
     {% endif %}
