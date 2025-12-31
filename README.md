@@ -1,6 +1,6 @@
 # 🤖 AutoBlueprint: Agentic AI-Powered CloudFormation Generator (Middleware Mode)
 
-**AutoBlueprint** is a proof-of-concept tool that analyzes OSQuery discovery data, uses GPT to classify useful software components (runtimes, middleware, databases), and generates a ready-to-deploy **CloudFormation template** to re-provision the workload in AWS. It now also parses host specs (OS/CPU/RAM) from the OSQuery export and uses them to recommend instance defaults in the template.
+**AutoBlueprint** is a proof-of-concept tool that analyzes OSQuery discovery data, uses GPT to classify useful software components (runtimes, middleware, databases), writes a canonical **workload.json** artifact, and generates a ready-to-deploy **CloudFormation template** to re-provision the workload in AWS. It also parses host specs (OS/CPU/RAM) from the OSQuery export and uses them to recommend instance defaults in the template.
 
 ---
 
@@ -9,6 +9,7 @@
 - 🧠 **AI-Powered Middleware Detection**
 - 🧹 **Noise Reduction**
 - 🏗️ **CloudFormation Template Generator**
+- 🧾 **Canonical workload.json Artifact**
 - ⚙️ **GitLab Runner Integration for CI/CD Deployment**
 - 📄 **Input Flexibility**
 
@@ -20,6 +21,7 @@
 autoblueprint/
 ├── main.py
 ├── mapper.py
+├── workload.py
 ├── cleaner/
 │   └── classify.py
 ├── generator/
@@ -31,7 +33,8 @@ autoblueprint/
 │   └── os_version.json  # Optional
 ├── output/
 │   └── <timestamp>/
-│       └── autoblueprint_template.yaml
+│       ├── autoblueprint_template.yaml
+│       └── workload.json
 ├── deploy.py
 ├── .env
 ├── .gitignore
@@ -73,6 +76,7 @@ python deploy.py  # Optional: deploy the latest template to AWS
 - AMI default (SSM param): based on detected OS (Windows, Ubuntu 20/22, otherwise Amazon Linux 2).
 - Root volume size default: 60GB for Windows, 20GB otherwise.
 - The classified middleware list is still emitted (normalized names), but not yet used to install software.
+- CloudFormation now consumes `workload.json` instead of raw OSQuery output.
 
 ---
 
@@ -150,27 +154,26 @@ Cloud Migration Architect, AI Automation Advocate
 
 ### Package and Upload Data to S3
 - Create a manifest based on data_manifest.json.example (Linux example includes /var/www/html).
-`ash
+```bash
 cp data_manifest.json.example data_manifest.json
 # Edit include/exclude paths as needed
 python packager.py --manifest data_manifest.json --bucket <your-bucket> --key demo/site.zip
-``r
+```
 
 ### Generate Template
-`ash
+```bash
 python main.py
-``r
+```
 
 ### Deploy
 Set env vars for the deploy helper or pass parameters in the console:
-`ash
+```bash
 set S3_BUCKET=<your-bucket>
 set S3_KEY=demo/site.zip
 set WEB_SERVER=nginx  # or httpd
 python deploy.py
-``r
+```
 Notes:
 - Template uses Amazon Linux 2 via SSM AMI parameter and installs 
 ginx or httpd.
 - Without SECURITY_GROUP_ID, default SG applies (may not allow inbound 80). Set SECURITY_GROUP_ID to attach a SG that allows HTTP.
-

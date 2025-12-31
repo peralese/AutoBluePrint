@@ -2,8 +2,9 @@ import os
 import json
 from datetime import datetime
 from cleaner.classify import classify_programs
-from generator.cloudformation import generate_cloudformation_template
+from generator.cloudformation import generate_cloudformation_from_workload
 from osquery_parser import extract_specs, parse_osquery_dump
+from workload import build_workload
 
 
 def main():
@@ -50,16 +51,33 @@ def main():
             f"RAM={specs.get('memory_bytes')} bytes",
         )
 
-    print("📦 Generating CloudFormation template...")
+    print("🧾 Building workload.json artifact...")
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     output_dir = os.path.join("output", timestamp)
     os.makedirs(output_dir, exist_ok=True)
     output_file = os.path.join(output_dir, "autoblueprint_template.yaml")
+    workload_file = os.path.join(output_dir, "workload.json")
 
+    workload = build_workload(
+        raw_programs=raw_programs,
+        classified_components=classified_components,
+        specs=specs,
+        input_path=input_path,
+        llm_model=os.getenv("GPT_MODEL", "gpt-4"),
+    )
+
+    with open(workload_file, "w", encoding="utf-8") as f:
+        json.dump(workload, f, indent=2)
+
+    with open(workload_file, "r", encoding="utf-8") as f:
+        workload = json.load(f)
+
+    print("📦 Generating CloudFormation template...")
     with open(output_file, "w") as f:
-        f.write(generate_cloudformation_template(classified_components, specs=specs))
+        f.write(generate_cloudformation_from_workload(workload))
 
     print(f"✅ CloudFormation template saved to: {output_file}")
+    print(f"✅ Workload artifact saved to: {workload_file}")
 
 
 if __name__ == "__main__":

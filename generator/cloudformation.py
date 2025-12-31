@@ -82,14 +82,23 @@ def recommend_volume_size(specs):
     return 20
 
 
+def _prepare_components(components):
+    normalized = []
+    for component in components or []:
+        item = dict(component)
+        name = item.get("name") or item.get("component_id") or "Component"
+        item["name"] = name
+        # Normalize resource names for template usage
+        item["resource_name"] = name.replace(" ", "").replace("-", "").replace("_", "")
+        normalized.append(item)
+    return normalized
+
+
 def generate_cloudformation_template(components, specs=None):
     env = Environment(loader=FileSystemLoader("templates"))
     template = env.get_template("cloudformation_template.j2")
 
-    # Normalize resource names
-    for c in components:
-        c["resource_name"] = c["name"].replace(" ", "").replace("-", "").replace("_", "")
-
+    components = _prepare_components(components)
     recommended_instance = recommend_instance_type(specs) if specs else None
     recommended_ami_param = recommend_ami_parameter(specs)
     recommended_volume_size = recommend_volume_size(specs)
@@ -100,4 +109,25 @@ def generate_cloudformation_template(components, specs=None):
         instance_type_default=recommended_instance,
         ami_param_default=recommended_ami_param,
         volume_size_default=recommended_volume_size,
+    )
+
+
+def generate_cloudformation_from_workload(workload):
+    specs = (workload or {}).get("host_spec") or {}
+    components = (workload or {}).get("software_components") or []
+    sizing = (workload or {}).get("sizing") or {}
+
+    instance_type_default = sizing.get("recommended_instance_type") or recommend_instance_type(specs)
+    ami_param_default = recommend_ami_parameter(specs)
+    volume_size_default = recommend_volume_size(specs)
+
+    env = Environment(loader=FileSystemLoader("templates"))
+    template = env.get_template("cloudformation_template.j2")
+
+    return template.render(
+        components=_prepare_components(components),
+        specs=specs,
+        instance_type_default=instance_type_default,
+        ami_param_default=ami_param_default,
+        volume_size_default=volume_size_default,
     )
