@@ -17,6 +17,18 @@ INSTANCE_CATALOG = [
 DEFAULT_AMI_SSM = "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"
 
 
+def _normalize_specs(specs):
+    if not specs:
+        return {}
+    normalized = {}
+    for key, value in specs.items():
+        if isinstance(value, dict) and "value" in value:
+            normalized[key] = value.get("value")
+        else:
+            normalized[key] = value
+    return normalized
+
+
 def _memory_bytes_to_gib(memory_bytes):
     if not memory_bytes:
         return None
@@ -28,6 +40,7 @@ def recommend_instance_type(specs):
     Choose an instance type that meets or exceeds detected cores/memory,
     picking the smallest match from a simple catalog.
     """
+    specs = _normalize_specs(specs)
     if not specs:
         return None
     target_vcpus = specs.get("cpu_logical_cores") or specs.get("cpu_physical_cores")
@@ -53,6 +66,7 @@ def recommend_ami_parameter(specs):
     """
     Pick an SSM parameter path for AMI based on detected OS.
     """
+    specs = _normalize_specs(specs)
     if not specs:
         return DEFAULT_AMI_SSM
 
@@ -73,6 +87,7 @@ def recommend_volume_size(specs):
     """
     Heuristic: default larger root volume for Windows hosts.
     """
+    specs = _normalize_specs(specs)
     if not specs:
         return 20
     os_name = (specs.get("os_name") or "").lower()
@@ -116,6 +131,13 @@ def generate_cloudformation_from_workload(workload):
     specs = (workload or {}).get("host_spec") or {}
     components = (workload or {}).get("software_components") or []
     sizing = (workload or {}).get("sizing") or {}
+    iac_intent = (workload or {}).get("iac_intent") or {}
+    min_confidence = iac_intent.get("min_component_confidence", 0.0)
+    components = [
+        c
+        for c in components
+        if (c.get("eligible_for_iac", True) and (c.get("confidence") or 0) >= min_confidence)
+    ]
 
     instance_type_default = sizing.get("recommended_instance_type") or recommend_instance_type(specs)
     ami_param_default = recommend_ami_parameter(specs)

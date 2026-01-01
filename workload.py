@@ -2,6 +2,8 @@ import hashlib
 import os
 from datetime import datetime, timezone
 
+DEFAULT_MIN_COMPONENT_CONFIDENCE = 0.6
+
 
 def _file_sha256(path):
     hasher = hashlib.sha256()
@@ -36,11 +38,12 @@ def _build_component(component, raw_index, llm_model):
     raw_matches = raw_index.get(name.strip().lower(), [])
 
     evidence = []
-    for record in raw_matches[:3]:
+    for idx, record in enumerate(raw_matches[:3]):
         evidence.append(
             {
                 "type": "osquery_record",
                 "source": "programs",
+                "index": idx,
                 "record": record,
             }
         )
@@ -51,11 +54,13 @@ def _build_component(component, raw_index, llm_model):
         }
     )
 
-    confidence = 0.6
+    confidence = 0.4
+    if raw_matches:
+        confidence += 0.4
     if version:
         confidence += 0.1
-    if raw_matches:
-        confidence += 0.1
+    if comp_type:
+        confidence += 0.05
     confidence = min(confidence, 0.95)
 
     component_id = hashlib.sha1(
@@ -68,7 +73,55 @@ def _build_component(component, raw_index, llm_model):
         "name": name,
         "version": version,
         "confidence": confidence,
+        "eligible_for_iac": confidence >= DEFAULT_MIN_COMPONENT_CONFIDENCE,
         "evidence": evidence,
+    }
+
+def _osquery_evidence(parsed, table, index=0):
+    if not parsed:
+        return []
+    rows = parsed.get(table) or []
+    if not rows or index >= len(rows):
+        return []
+    return [
+        {
+            "type": "osquery_record",
+            "source": table,
+            "index": index,
+            "record": rows[index],
+        }
+    ]
+
+
+def _field_with_evidence(value, evidence):
+    if value is None:
+        confidence = 0.0
+    elif evidence:
+        confidence = 0.9
+    else:
+        confidence = 0.5
+    return {
+        "value": value,
+        "confidence": confidence,
+        "evidence": evidence,
+    }
+
+
+def _build_host_spec(specs, parsed):
+    specs = specs or {}
+    os_evidence = _osquery_evidence(parsed, "os_version")
+    cpu_evidence = _osquery_evidence(parsed, "cpu_info")
+    memory_evidence = _osquery_evidence(parsed, "memory_info")
+
+    return {
+        "hostname": _field_with_evidence(specs.get("hostname"), []),
+        "os_name": _field_with_evidence(specs.get("os_name"), os_evidence),
+        "os_version": _field_with_evidence(specs.get("os_version"), os_evidence),
+        "platform": _field_with_evidence(specs.get("platform"), os_evidence),
+        "cpu_model": _field_with_evidence(specs.get("cpu_model"), cpu_evidence),
+        "cpu_physical_cores": _field_with_evidence(specs.get("cpu_physical_cores"), cpu_evidence),
+        "cpu_logical_cores": _field_with_evidence(specs.get("cpu_logical_cores"), cpu_evidence),
+        "memory_bytes": _field_with_evidence(specs.get("memory_bytes"), memory_evidence),
     }
 
 
@@ -80,6 +133,7 @@ def build_workload(
     llm_provider="openai",
     llm_model=None,
     schema_version="0",
+    parsed=None,
 ):
     workload_id = os.path.splitext(os.path.basename(input_path))[0] or "workload"
     generated_at = datetime.now(timezone.utc).isoformat()
@@ -107,7 +161,7 @@ def build_workload(
                 "prompt_hash": None,
             },
         },
-        "host_spec": specs or {},
+        "host_spec": _build_host_spec(specs, parsed),
         "software_components": components,
         "sizing": {
             "recommended_instance_type": None,
@@ -120,6 +174,7 @@ def build_workload(
             "migration_strategy": "rehost",
             "allowed_resource_types": [],
             "blocked_resource_types": [],
+            "min_component_confidence": DEFAULT_MIN_COMPONENT_CONFIDENCE,
         },
         "open_questions": [],
     }

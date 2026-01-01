@@ -19,6 +19,7 @@ def main():
     # Try to parse OSQuery multi-block exports; fall back to a simple JSON list
     raw_programs = []
     specs = {}
+    parsed = None
     try:
         parsed = parse_osquery_dump(input_path)
         specs = extract_specs(parsed)
@@ -64,6 +65,7 @@ def main():
         specs=specs,
         input_path=input_path,
         llm_model=os.getenv("GPT_MODEL", "gpt-4"),
+        parsed=parsed,
     )
 
     with open(workload_file, "w", encoding="utf-8") as f:
